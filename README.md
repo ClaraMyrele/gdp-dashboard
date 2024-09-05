@@ -1,19 +1,16 @@
-# :earth_americas: GDP dashboard template
+# Explorador de Voos - Estilo Kayak
 
-A simple Streamlit app showing the GDP of different countries in the world.
+Esta é uma aplicação interativa de busca de voos, inspirada no estilo do **Kayak Explore**, que permite aos usuários filtrarem voos com base na cidade de partida, chegada, data da viagem e companhia aérea. Utilizando **Streamlit**, a aplicação exibe os resultados em uma interface amigável e interativa, com previsão de preços baseada em um modelo de regressão.
 
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://gdp-dashboard-template.streamlit.app/)
+## Funcionalidades
 
-### How to run it on your own machine
+- **Filtros de busca**: Escolha a cidade de partida, destino, data e companhia aérea.
+- **Previsão de preços**: Utiliza um modelo de machine learning (Gradient Boosting Regressor) para prever o preço dos voos.
+- **Interface interativa**: Fácil de usar, com visualização dinâmica dos resultados.
 
-1. Install the requirements
+## Pré-requisitos
 
-   ```
-   $ pip install -r requirements.txt
-   ```
+Antes de rodar a aplicação, certifique-se de ter o **Python** instalado. Além disso, será necessário instalar as seguintes bibliotecas:
 
-2. Run the app
-
-   ```
-   $ streamlit run streamlit_app.py
-   ```
+```bash
+pip install streamlit numpy pandas scikit-learn
