@@ -1,151 +1,59 @@
+
 import streamlit as st
+import numpy as np
 import pandas as pd
-import math
-from pathlib import Path
+from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+# Título da página
+st.title("Explorador de Voos - Estilo Kayak")
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+# Carregar os dados
+data = np.load('airline_tickets.npy')
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# Convertendo os dados em um DataFrame para facilitar a manipulação
+colunas = ['cidade_partida', 'cidade_chegada', 'data_viagem', 'companhia_aerea', 'preco']
+df = pd.DataFrame(data, columns=colunas)
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+# Input do usuário
+st.sidebar.header("Filtros de Busca")
+cidade_partida = st.sidebar.selectbox('Cidade de Partida', df['cidade_partida'].unique())
+cidade_chegada = st.sidebar.selectbox('Cidade de Chegada', df['cidade_chegada'].unique())
+data_viagem = st.sidebar.date_input('Data de Viagem')
+companhia_aerea = st.sidebar.selectbox('Companhia Aérea', df['companhia_aerea'].unique())
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
+# Análise dos dados
+X = df.drop('preco', axis=1)
+y = df['preco']
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
+# Escalonamento dos dados
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
+# Modelo de Regressão
+model = GradientBoostingRegressor()
+model.fit(X_train_scaled, y_train)
 
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
+# Filtros com base nas entradas
+voos_filtrados = df[(df['cidade_partida'] == cidade_partida) &
+                    (df['cidade_chegada'] == cidade_chegada) &
+                    (df['data_viagem'] == data_viagem.strftime('%Y-%m-%d')) &
+                    (df['companhia_aerea'] == companhia_aerea)]
 
-    return gdp_df
+# Prevendo os preços dos voos filtrados
+if not voos_filtrados.empty:
+    X_filtrado = voos_filtrados.drop('preco', axis=1)
+    X_filtrado_escalado = scaler.transform(X_filtrado)
+    voos_filtrados['preco_previsto'] = model.predict(X_filtrado_escalado)
 
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
-
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+    # Ordenar voos pelo preço previsto
+    voos_filtrados = voos_filtrados.sort_values('preco_previsto')
+    
+    # Exibir resultados
+    st.write(f"Resultados da busca para {cidade_partida} → {cidade_chegada} em {data_viagem}:")
+    st.table(voos_filtrados[['cidade_partida', 'cidade_chegada', 'data_viagem', 'companhia_aerea', 'preco_previsto']])
+else:
+    st.write("Nenhum voo encontrado com os critérios selecionados.")
